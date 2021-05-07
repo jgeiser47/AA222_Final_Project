@@ -18,10 +18,11 @@ function x_hist = grad_descent()
 
 % Hyperparameters and max iterations
 alpha = 10;
+gamma = 0.99;
 N_MAX = 1000;
 
 % Initial condition
-x0 = [59200; 59800]; %[59000; 59100];
+x0 = [58850; 59600]; %[59000; 59100]; [59200; 59800];
 x_hist = [x0];
 x = x0;
 
@@ -31,7 +32,8 @@ while i <= N_MAX
     
     % Update step
     gx = g(x(1), x(2));
-    x = x - alpha * gx;
+    x = x - alpha * (gx ./ norm(gx)); 
+    alpha = alpha * gamma;
     
     % Append to x_hist array and increment iteration
     x_hist = [x_hist, x];
@@ -45,13 +47,15 @@ function plot_contour(x_hist)
 
 N = 100;
 
-% 2013-2014
-x = linspace(56550, 56800, N);
-y = linspace(56750, 57250, N);
-
 % 2020-2021 (Mars 2020: July 30, 2020 - Feb 18, 2021)
-x = linspace(58850, 59250, N); %linspace(58950, 59200, N);
-y = linspace(59060, 59850, N); %linspace(59140, 59700, N);
+x_beg = cal_to_MJD([01, 01, 2020]);
+x_end = cal_to_MJD([01, 05, 2021]); 
+y_beg = cal_to_MJD([08, 01, 2020]);
+y_end = cal_to_MJD([09, 01, 2022]);
+
+% Get arrays of MJDs
+x = linspace(x_beg, x_end, N); 
+y = linspace(y_beg, y_end, N); 
 
 % Get mesh grid and setup Z (aka f(x)) variable
 [X,Y] = meshgrid(x,y);
@@ -60,9 +64,14 @@ Z = zeros(size(X));
 % Populate f(x) values given inputs x1 and x2
 for i = 1:size(X,1)
     for j = 1:size(X,2)
-        Z(i,j) = f(X(i,j), Y(i,j));
+        Z(i,j) = f(X(i,j), Y(i,j), 1);
     end
 end
+
+% Constraint lines
+c1_x = linspace(x_beg, x_end+100, N);
+c1_y = c1_x;
+c2_y = c1_x + 365*1.5;
 
 % Create contour plot
 figure(); hold on; grid on; axis equal;
@@ -70,14 +79,16 @@ figure(); hold on; grid on; axis equal;
 levels = [5,5.5,6,6.5,7,7.5,8,8.5,9,10,11,12,13,14,15];
 contour(toDateNum(X), toDateNum(Y), Z, levels);
 colorbar;
+patch(toDateNum([c1_x c1_x(end)]), toDateNum([c1_y c1_y(1)]), 'r', 'EdgeColor', 'none', 'FaceAlpha', 0.2);
+patch(toDateNum([c1_x c1_x(1)]), toDateNum([c2_y c2_y(end)]), 'r', 'EdgeColor', 'none', 'FaceAlpha', 0.2);
 xlabel('Earth Departure Date');
 ylabel('Mars Arrival Date');
 dateformat = 2;
 datetick('x', dateformat);
 datetick('y', dateformat);
 xtickangle(45);
-xlim([toDateNum(cal_to_MJD([01, 01, 2020])), toDateNum(cal_to_MJD([01, 02, 2021]))]);
-ylim([toDateNum(cal_to_MJD([08, 01, 2020])), toDateNum(cal_to_MJD([09, 01, 2022]))]);
+xlim([toDateNum(x_beg), toDateNum(x_end)]);
+ylim([toDateNum(y_beg), toDateNum(y_end)]);
 
 if (x_hist)
     plot(toDateNum(x_hist(1,:)), toDateNum(x_hist(2,:)), 'k')
@@ -92,13 +103,25 @@ function val_out = toDateNum(MJD)
 val_out = datenum(datetime(MJD, 'convertfrom', 'modifiedjuliandate'));
 end
 
-function fx = f(x1, x2)
+function fx = f(x1, x2, no_penalty)
 % Purpose: Wrapper for optimization problem. Returns f(x) given inputs x1
 %          and x2, where x1 is the Earth departure MJD and x2 is the Mars 
 %          arrival MJD
 
+if ~exist('no_penalty', 'var')
+    no_penalty = 0;
+end
+
 data = solve_lambert(x1, x2);
 fx = data.dv_tot;
+
+% Add penalties to f(x)
+if ~no_penalty
+    rho_count = 5;
+    rho_quadr = 0.05;
+    cx = c(x1, x2);
+    fx = fx + (rho_count * sum(max(cx,0)>0)) + (rho_quadr * sum(max(cx,0).^2));
+end
 end
 
 function gx = g(x1, x2)
@@ -113,6 +136,15 @@ fprime2 = (f(x1,x2+(h/2)) - f(x1,x2-(h/2))) / h;
 
 % Return gradient
 gx = [fprime1; fprime2];
+end
+
+function cx = c(x1, x2)
+% Purpose: Calculate constraint violations (constraints violated for values
+%          greater than 0)
+
+% Trajectory most have TOF between 0 and 1.5 years
+cx = [x1 - x2; ...
+      x2 - x1 - 365*1.5];
 end
 
 function data = solve_lambert(MJD_1, MJD_2)
