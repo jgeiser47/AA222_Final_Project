@@ -2,26 +2,56 @@
 % AA 222 Final Project
 clear all; close all; clc;
 
-cal_1 = [11, 05, 2013];
+cal_1 = [11, 05, 2020];
 MJD_1 = cal_to_MJD(cal_1);
-cal_2 = [09, 24, 2014];
+cal_2 = [03, 24, 2021];
 MJD_2 = cal_to_MJD(cal_2);
 data = solve_lambert(MJD_1, MJD_2);
-plot_lambert_arc(data);
+%plot_lambert_arc(data);
 
-plot_contour()
+x_hist = grad_descent();
 
-function plot_contour()
+plot_contour(x_hist)
+
+function x_hist = grad_descent()
+% Purpose: run simple gradient descent algorithm
+
+% Hyperparameters and max iterations
+alpha = 10;
+N_MAX = 1000;
+
+% Initial condition
+x0 = [59200; 59800]; %[59000; 59100];
+x_hist = [x0];
+x = x0;
+
+% Iterate until max iterations or converged
+i = 1;
+while i <= N_MAX
+    
+    % Update step
+    gx = g(x(1), x(2));
+    x = x - alpha * gx;
+    
+    % Append to x_hist array and increment iteration
+    x_hist = [x_hist, x];
+    i = i+1;
+end
+end
+
+function plot_contour(x_hist)
 % Purpose: Iterate over 2D array of departure dates and arrival dates to
 %          create a porkchop plot. 
 
+N = 100;
+
 % 2013-2014
-x = linspace(56550, 56800, 50);
-y = linspace(56750, 57250, 50);
+x = linspace(56550, 56800, N);
+y = linspace(56750, 57250, N);
 
 % 2020-2021 (Mars 2020: July 30, 2020 - Feb 18, 2021)
-x = linspace(58950, 59200, 50);
-y = linspace(59140, 59700, 50);
+x = linspace(58850, 59250, N); %linspace(58950, 59200, N);
+y = linspace(59060, 59850, N); %linspace(59140, 59700, N);
 
 % Get mesh grid and setup Z (aka f(x)) variable
 [X,Y] = meshgrid(x,y);
@@ -36,13 +66,31 @@ end
 
 % Create contour plot
 figure(); hold on; grid on; axis equal;
-levels = [7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39];
-contour(X,Y,Z,levels);
+%levels = [7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39];
+levels = [5,5.5,6,6.5,7,7.5,8,8.5,9,10,11,12,13,14,15];
+contour(toDateNum(X), toDateNum(Y), Z, levels);
 colorbar;
-xlabel('Earth Departure Date (MJD)');
-ylabel('Mars Arrival Date (MJD)');
+xlabel('Earth Departure Date');
+ylabel('Mars Arrival Date');
+dateformat = 2;
+datetick('x', dateformat);
+datetick('y', dateformat);
+xtickangle(45);
+xlim([toDateNum(cal_to_MJD([01, 01, 2020])), toDateNum(cal_to_MJD([01, 02, 2021]))]);
+ylim([toDateNum(cal_to_MJD([08, 01, 2020])), toDateNum(cal_to_MJD([09, 01, 2022]))]);
+
+if (x_hist)
+    plot(toDateNum(x_hist(1,:)), toDateNum(x_hist(2,:)), 'k')
+end
+% ax = gca;
+% ax.XAxis.Exponent = 0;
+% xtickformat('%.0f');
 end
 
+function val_out = toDateNum(MJD)
+% Purpose: Helper function for converting MJD to datenum for plotting
+val_out = datenum(datetime(MJD, 'convertfrom', 'modifiedjuliandate'));
+end
 
 function fx = f(x1, x2)
 % Purpose: Wrapper for optimization problem. Returns f(x) given inputs x1
@@ -50,7 +98,21 @@ function fx = f(x1, x2)
 %          arrival MJD
 
 data = solve_lambert(x1, x2);
-fx = data.C3_1;
+fx = data.dv_tot;
+end
+
+function gx = g(x1, x2)
+% Purpose: Get gradient of function using central difference method
+
+% Step size
+h = 0.1;
+
+% Partial derivatives wrt x1 and x2
+fprime1 = (f(x1+(h/2),x2) - f(x1-(h/2),x2)) / h;
+fprime2 = (f(x1,x2+(h/2)) - f(x1,x2-(h/2))) / h;
+
+% Return gradient
+gx = [fprime1; fprime2];
 end
 
 function data = solve_lambert(MJD_1, MJD_2)
@@ -105,6 +167,49 @@ data.v2_out = v2_out;
 data.C3_1 = norm(v_Earth - v1_out)^2;
 data.C3_2 = norm(v_Mars - v2_out)^2;
 data.C3_tot = data.C3_1 + data.C3_2;
+data.dv_1 = get_Earth_dv(data.C3_1);
+data.dv_2 = get_Mars_dv(data.C3_2);
+data.dv_tot = data.dv_1 + data.dv_2;
+end
+
+function Earth_dv = get_Earth_dv(C3)
+% Purpose: Calculate Earth departure delta-V required for given Lambert arc
+%          solution. Assumes no plane change and initial 400 km altitude
+%          circular orbit. 
+
+% Earth gravitational parameter
+mu = 3.986e5; 
+
+% Initial velocity for 400 km altitude circular orbit
+r1 = 6378.137 + 400;
+v1 = sqrt(mu/r1); 
+
+% Periapsis velocity of hyperbolic trajectory 
+energy = C3 / 2;
+v2 = sqrt(2 * (energy + (mu/r1)));
+
+% Calculate delta-V required
+Earth_dv = abs(v2 - v1);
+end
+
+function Mars_dv = get_Mars_dv(C3)
+% Purpose: Calculate Mars arrival delta-V required for given Lambert arc
+%          solution. Assumes no plane change and final 400 km altitude
+%          circular orbit. 
+
+% Mars gravitational parameter
+mu = 42828.3719; 
+
+% Initial velocity for 400 km altitude circular orbit
+r1 = 3396.19 + 400;
+v1 = sqrt(mu/r1); 
+
+% Periapsis velocity of hyperbolic trajectory 
+energy = C3 / 2;
+v2 = sqrt(2 * (energy + (mu/r1)));
+
+% Calculate delta-V required
+Mars_dv = abs(v2 - v1);
 end
 
 function plot_lambert_arc(data)
