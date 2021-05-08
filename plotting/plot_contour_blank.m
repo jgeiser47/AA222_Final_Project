@@ -8,6 +8,8 @@ s = get_contour_data();
 % Create contour plot
 figure(); hold on; grid on; axis equal;
 contour_helper(s);
-colorbar;
 title('\Delta V vs Departure/Arrival Date');
+hcb = colorbar; 
+hcb.Title.String = '\DeltaV';
+hcb.Title.FontWeight = 'bold';
 end

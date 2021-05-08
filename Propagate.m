@@ -2,6 +2,7 @@
 % AA 222 Final Project
 clear all; close all; clc;
 
+%% Plot of Lambert Arcs and Transfer Orbit Geometry
 % cal_1 = [11, 05, 2020];
 % MJD_1 = cal_to_MJD(cal_1);
 % cal_2 = [03, 24, 2021];
@@ -9,16 +10,29 @@ clear all; close all; clc;
 % data = solve_lambert(MJD_1, MJD_2);
 % plot_lambert_arc(data);
 
-%x_hist = grad_descent();
-x_hist = adam();
+%% Blank Porchop Plot
+%plot_contour_blank()
 
-plot_contour_blank()
-plot_contour_first_order_methods(x_hist)
+%% Comparison Plot of Gradient Descent and Adam
+% Get initial conditions
+rng(5);
+N = 3;
+x0s = get_x0s(N);
 
-%x0s = get_x0s(3)
+% Get N runs of gradient descent and adam for comparison
+x_hist_grad = [];
+x_hist_adam = [];
+for i = 1:N
+    x_hist_grad(:,:,i) = grad_descent(x0s(:,i));
+    x_hist_adam(:,:,i) = adam(x0s(:,i));
+end
 
-function x_hist = adam()
-% Purpose: run ADAM algorithm 
+% Plot comparison of first-order methods (gradient descent and adam)
+plot_contour_first_order_methods(x_hist_grad, x_hist_adam);
+
+
+function x_hist = adam(x0)
+% Purpose: run Adam algorithm 
 
 % Hyperparameters
 alpha = 5;
@@ -27,8 +41,7 @@ gammas = 0.5;
 eps = 1e-8; 
 N_MAX = 100;
 
-% Initial condition
-x0 = [58900; 59600]; 
+% Initial conditions
 x_hist = [x0];
 x = x0;
 k = 0; 
@@ -52,16 +65,16 @@ while k < N_MAX
 end
 end
 
-function x_hist = grad_descent()
-% Purpose: run simple gradient descent algorithm
+function x_hist = grad_descent(x0)
+% Purpose: run simple gradient descent algorithm (with normalized descent
+%          direction and decaying learning rate)
 
 % Hyperparameters and max iterations
 alpha = 10;
 gamma = 0.99;
 N_MAX = 1000;
 
-% Initial condition
-x0 = [59100; 59800]; %[59000; 59100]; [59200; 59800];
+% Initial conditions
 x_hist = [x0];
 x = x0;
 
@@ -88,10 +101,10 @@ function x0s = get_x0s(N)
 
 x = (x_end - x_beg) .* rand(N,1) + x_beg;
 y = (y_end - y_beg) .* rand(N,1) + y_beg;
-x0s = [x, y];
+x0s = [x, y]';
 end
 
-function plot_contour_first_order_methods(x_hist)
+function plot_contour_first_order_methods(x_hist_grad, x_hist_adam)
 % Purpose: Create porkchop plots comparing performance of the two first
 %          order methods used: gradient descent and ADAM
 
@@ -101,16 +114,25 @@ s = get_contour_data();
 % Create contour plot
 figure(); 
 
+% Number of times each algorithm was run
+N = size(x_hist_grad, 3);
+
+% Gradient Descent subplot
 subplot(1,2,1); hold on; grid on; axis equal;
 contour_helper(s);
+for i = 1:N
+    plot(toDateNum(x_hist_grad(1,:,i)), toDateNum(x_hist_grad(2,:,i)), 'k');
+end
 title('Gradient Descent');
 
+% Adam subplot
 subplot(1,2,2); hold on; grid on; axis equal;
 contour_helper(s);
-title('Adam');
-colorbar;
-
-if (x_hist)
-    plot(toDateNum(x_hist(1,:)), toDateNum(x_hist(2,:)), 'k')
+for i = 1:N
+    plot(toDateNum(x_hist_adam(1,:,i)), toDateNum(x_hist_adam(2,:,i)), 'k');
 end
+title('Adam');
+hcb = colorbar; 
+hcb.Title.String = '\DeltaV';
+hcb.Title.FontWeight = 'bold';
 end
