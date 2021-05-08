@@ -9,9 +9,48 @@ MJD_2 = cal_to_MJD(cal_2);
 data = solve_lambert(MJD_1, MJD_2);
 %plot_lambert_arc(data);
 
-x_hist = grad_descent();
+%x_hist = grad_descent();
+x_hist = adam();
 
-plot_contour(x_hist)
+plot_contour_blank()
+plot_contour_first_order_methods(x_hist)
+
+%x0s = get_x0s(3)
+
+function x_hist = adam()
+% Purpose: run ADAM algorithm 
+
+% Hyperparameters
+alpha = 5;
+gammav = 0.5;
+gammas = 0.5;
+eps = 1e-8; 
+N_MAX = 100;
+
+% Initial condition
+x0 = [58900; 59600]; 
+x_hist = [x0];
+x = x0;
+k = 0; 
+v_k = [0; 0];
+s_k = [0; 0];
+
+% Iterate until max iterations
+while k < N_MAX
+    
+    % Update step
+    g_k = g(x(1), x(2)); 
+    v_k = gammav*v_k + (1-gammav)*g_k;
+    s_k = gammas*s_k + (1-gammas)*(g_k.^2);
+    k = k + 1; 
+    v_hat = v_k ./ (1 - gammav^k);
+    s_hat = s_k ./ (1 - gammas^k);
+    x = x - ((alpha.*v_hat) ./ (eps + sqrt(s_hat)));
+    
+    % Append to x_hist array 
+    x_hist = [x_hist, x];
+end
+end
 
 function x_hist = grad_descent()
 % Purpose: run simple gradient descent algorithm
@@ -22,11 +61,11 @@ gamma = 0.99;
 N_MAX = 1000;
 
 % Initial condition
-x0 = [58850; 59600]; %[59000; 59100]; [59200; 59800];
+x0 = [59100; 59800]; %[59000; 59100]; [59200; 59800];
 x_hist = [x0];
 x = x0;
 
-% Iterate until max iterations or converged
+% Iterate until max iterations
 i = 1;
 while i <= N_MAX
     
@@ -41,17 +80,40 @@ while i <= N_MAX
 end
 end
 
-function plot_contour(x_hist)
-% Purpose: Iterate over 2D array of departure dates and arrival dates to
-%          create a porkchop plot. 
+function x0s = get_x0s(N)
+% Purpose: Get an array of N random initial conditions x0 for use in 
+%          multiple optimization test cases
 
-N = 100;
+[x_beg, x_end, y_beg, y_end] = get_datelims();
 
-% 2020-2021 (Mars 2020: July 30, 2020 - Feb 18, 2021)
+x = (x_end - x_beg) .* rand(N,1) + x_beg;
+y = (y_end - y_beg) .* rand(N,1) + y_beg;
+x0s = [x, y];
+end
+
+function [x_beg, x_end, y_beg, y_end] = get_datelims()
+% Purpose: Get beginning/end MJDs for X and Y axes of search space
+
+% 2020-2021 launch window (Mars 2020 dates: July 30, 2020 - Feb 18, 2021)
 x_beg = cal_to_MJD([01, 01, 2020]);
 x_end = cal_to_MJD([01, 05, 2021]); 
 y_beg = cal_to_MJD([08, 01, 2020]);
 y_end = cal_to_MJD([09, 01, 2022]);
+end
+
+function s = get_contour_data()
+% Purpose: Get data for contour lines by running Lambert's algorithm across
+%          search space. This function helps prevent running this over and
+%          over again for each contour plot. 
+
+% Output struct
+s = struct(); 
+
+% How fine the mesh grid is
+N = 100;
+
+% Get axis limits
+[x_beg, x_end, y_beg, y_end] = get_datelims();
 
 % Get arrays of MJDs
 x = linspace(x_beg, x_end, N); 
@@ -73,29 +135,72 @@ c1_x = linspace(x_beg, x_end+100, N);
 c1_y = c1_x;
 c2_y = c1_x + 365*1.5;
 
-% Create contour plot
-figure(); hold on; grid on; axis equal;
-%levels = [7,9,11,13,15,17,19,21,23,25,27,29,31,33,35,37,39];
-levels = [5,5.5,6,6.5,7,7.5,8,8.5,9,10,11,12,13,14,15];
-contour(toDateNum(X), toDateNum(Y), Z, levels);
-colorbar;
-patch(toDateNum([c1_x c1_x(end)]), toDateNum([c1_y c1_y(1)]), 'r', 'EdgeColor', 'none', 'FaceAlpha', 0.2);
-patch(toDateNum([c1_x c1_x(1)]), toDateNum([c2_y c2_y(end)]), 'r', 'EdgeColor', 'none', 'FaceAlpha', 0.2);
+% Add values to struct
+s.N = N;
+s.x_beg = x_beg; s.x_end = x_end; 
+s.y_beg = y_beg; s.y_end = y_end;
+s.X = X; s.Y = Y; s.Z = Z;
+s.c1_x = c1_x; s.c1_y = c1_y; s.c2_y = c2_y;
+s.levels = [5,5.5,6,6.5,7,7.5,8,8.5,9,10,11,12,13,14,15];
+end
+
+function contour_helper(s)
+% Purpose: Helper function for formatting of the contour plots so that
+%          these lines of code don't have to be repeated for each subplot
+
+contour(toDateNum(s.X), toDateNum(s.Y), s.Z, s.levels);
+patch(toDateNum([s.c1_x s.c1_x(end)]), toDateNum([s.c1_y s.c1_y(1)]), 'r', 'EdgeColor', 'none', 'FaceAlpha', 0.2);
+patch(toDateNum([s.c1_x s.c1_x(1)]), toDateNum([s.c2_y s.c2_y(end)]), 'r', 'EdgeColor', 'none', 'FaceAlpha', 0.2);
 xlabel('Earth Departure Date');
 ylabel('Mars Arrival Date');
 dateformat = 2;
 datetick('x', dateformat);
 datetick('y', dateformat);
 xtickangle(45);
-xlim([toDateNum(x_beg), toDateNum(x_end)]);
-ylim([toDateNum(y_beg), toDateNum(y_end)]);
+xlim([toDateNum(s.x_beg), toDateNum(s.x_end)]);
+ylim([toDateNum(s.y_beg), toDateNum(s.y_end)]);
+xticks(toDateNum([cal_to_MJD([1,  1, 2020]), ...
+                  cal_to_MJD([4,  1, 2020]), ...
+                  cal_to_MJD([7,  1, 2020]), ...
+                  cal_to_MJD([10, 1, 2020]), ...
+                  cal_to_MJD([1,  1, 2021])]));
+end
+
+function plot_contour_blank()
+% Purpose: Iterate over 2D array of departure dates and arrival dates to
+%          create a porkchop plot. 
+
+% Get contour lines data by running Lambert's algorithm across search space
+s = get_contour_data();
+
+% Create contour plot
+figure(); hold on; grid on; axis equal;
+contour_helper(s);
+colorbar;
+title('\Delta V vs Departure/Arrival Date');
+
+end
+
+function plot_contour_first_order_methods(x_hist)
+% Purpose: Iterate over 2D array of departure dates and arrival dates to
+%          create a porkchop plot. 
+
+% Get contour lines data by running Lambert's algorithm across search space
+s = get_contour_data();
+
+% Create contour plot
+figure(); 
+
+subplot(1,2,1); hold on; grid on; axis equal;
+contour_helper(s);
+
+subplot(1,2,2); hold on; grid on; axis equal;
+contour_helper(s);
+colorbar;
 
 if (x_hist)
     plot(toDateNum(x_hist(1,:)), toDateNum(x_hist(2,:)), 'k')
 end
-% ax = gca;
-% ax.XAxis.Exponent = 0;
-% xtickformat('%.0f');
 end
 
 function val_out = toDateNum(MJD)
@@ -108,14 +213,16 @@ function fx = f(x1, x2, no_penalty)
 %          and x2, where x1 is the Earth departure MJD and x2 is the Mars 
 %          arrival MJD
 
+% Flag for adding penalties or not
 if ~exist('no_penalty', 'var')
     no_penalty = 0;
 end
 
+% Calculate total dV first without penalties
 data = solve_lambert(x1, x2);
 fx = data.dv_tot;
 
-% Add penalties to f(x)
+% Add penalties to f(x) (if running an algorithm, not for plotting)
 if ~no_penalty
     rho_count = 5;
     rho_quadr = 0.05;
