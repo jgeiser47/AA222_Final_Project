@@ -45,11 +45,12 @@ end
 
 % Generate trajectory plot
 figure(); hold on; grid on; axis equal;
-plot(r_Earth_arr(1,:), r_Earth_arr(2,:), 'b--');
-plot(r_Mars_arr(1,:), r_Mars_arr(2,:), 'r--');
-plot(r_transfer(1,:), r_transfer(2,:), 'm--');
 plot(0,0, 'y*');
 plot(data.r_Earth(1), data.r_Earth(2), 'bo', 'MarkerFaceColor', 'b');
 plot(data.r_Mars(1), data.r_Mars(2), 'ro', 'MarkerFaceColor', 'r');
+plot(r_transfer(1,:), r_transfer(2,:), 'm--');
+plot(r_Earth_arr(1,:), r_Earth_arr(2,:), 'b--');
+plot(r_Mars_arr(1,:), r_Mars_arr(2,:), 'r--');
 xlabel('X (km)'); ylabel('Y (km)');
+legend('Sun', 'Earth', 'Mars', 'Transfer');
 end

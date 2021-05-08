@@ -10,6 +10,19 @@ clear all; close all; clc;
 % data = solve_lambert(MJD_1, MJD_2);
 % plot_lambert_arc(data);
 
+%% Plot of Optimal Type I and Type II Transfers
+% MJD_1 = 59056.573659816;
+% MJD_2 = 59263.3863702012;
+% data = solve_lambert(MJD_1, MJD_2);
+% plot_lambert_arc(data);
+% title('Type I Trajectory');
+% 
+% MJD_1 = 59041.0301348091;
+% MJD_2 = 59365.698726598;
+% data = solve_lambert(MJD_1, MJD_2);
+% plot_lambert_arc(data);
+% title('Type II Trajectory');
+
 %% Blank Porchop Plot
 %plot_contour_blank()
 
@@ -39,7 +52,7 @@ alpha = 5;
 gammav = 0.5;
 gammas = 0.5;
 eps = 1e-8; 
-N_MAX = 100;
+N_MAX = 1000;
 
 % Initial conditions
 x_hist = [x0];
