@@ -27,21 +27,85 @@ clear all; close all; clc;
 %plot_contour_blank()
 
 %% Comparison Plot of Gradient Descent and Adam
-% Get initial conditions
-rng(5);
-N = 3;
-x0s = get_x0s(N);
+% % Get initial conditions
+% rng(5);
+% N = 3;
+% x0s = get_x0s(N);
+% 
+% % Get N runs of gradient descent and adam for comparison
+% x_hist_grad = [];
+% x_hist_adam = [];
+% for i = 1:N
+%     x_hist_grad(:,:,i) = grad_descent(x0s(:,i));
+%     x_hist_adam(:,:,i) = adam(x0s(:,i));
+% end
+% 
+% % Plot comparison of first-order methods (gradient descent and adam)
+% plot_contour_first_order_methods(x_hist_grad, x_hist_adam);
 
-% Get N runs of gradient descent and adam for comparison
-x_hist_grad = [];
-x_hist_adam = [];
-for i = 1:N
-    x_hist_grad(:,:,i) = grad_descent(x0s(:,i));
-    x_hist_adam(:,:,i) = adam(x0s(:,i));
+%% Cross-Entropy Method
+rng(1);
+N = 1;
+x0 = get_x0s(N);
+[x_hist, samples_hist, elite_samples_hist] = cross_entropy(x0);
+
+%%
+plot_contour_cross_entropy(x_hist, samples_hist, elite_samples_hist);
+
+
+function [x_hist, samples_hist, elite_samples_hist] = cross_entropy(x0)
+
+N_ITERS = 3;
+N_SAMPLE = 500;
+N_ELITE = 20;
+dim = 2;
+
+cov_0 = 200^2 .* eye(2);
+
+% Initial conditions
+x_hist = [x0];
+mu = x0;
+cov = cov_0;
+
+samples_hist = [];
+elite_samples_hist = [];
+
+for i=1:N_ITERS
+    
+    samples = sqrtm(cov) * randn(dim, N_SAMPLE) + mu;
+    f_samples = zeros(1,N_SAMPLE);
+    
+    for j = 1:N_SAMPLE
+        f_samples(j) = f(samples(1,j), samples(2,j));
+    end
+    
+    % On last iteration, just return the best performing sample
+%     if i==3
+%         N_ELITE = 1;
+%     end
+    
+    % Get indices of elite samples
+    [~, indices_sorted] = sort(f_samples);
+    indices_elite = indices_sorted(1:N_ELITE);
+    
+    % Fit distribution to elite samples
+    elite_samples = samples(:, indices_elite);
+    mu = mean(elite_samples, 2);
+    cov = zeros(dim, dim);
+    for j = 1:N_ELITE
+        cov = cov + (elite_samples(:,j) - mu) * (elite_samples(:,j) - mu)';
+    end
+    cov = cov / N_ELITE;
+    
+    % Append to x_hist array 
+    x_hist = [x_hist, mu];
+    
+    samples_hist(:,:,i) = samples;
+    elite_samples_hist(:,:,i) = elite_samples;
 end
 
-% Plot comparison of first-order methods (gradient descent and adam)
-plot_contour_first_order_methods(x_hist_grad, x_hist_adam);
+
+end
 
 
 function x_hist = adam(x0)
@@ -145,6 +209,34 @@ for i = 1:N
     plot(toDateNum(x_hist_adam(1,:,i)), toDateNum(x_hist_adam(2,:,i)), 'k');
 end
 title('Adam');
+hcb = colorbar; 
+hcb.Title.String = '\DeltaV';
+hcb.Title.FontWeight = 'bold';
+end
+
+function plot_contour_cross_entropy(x_hist, samples_hist, elite_samples_hist)
+% Purpose: Create porkchop plot of cross-entropy iterations
+
+% Get contour lines data by running Lambert's algorithm across search space
+s = get_contour_data();
+
+% Cross-Entropy Plot
+figure(); 
+
+N_iters = 3;
+for i = 1:N_iters
+    subplot(1,3,i); hold on; grid on; axis equal;
+    contour_helper(s);
+    plot(toDateNum(x_hist(1,1:i+1)), toDateNum(x_hist(2,1:i+1)), 'k');
+    scatter(toDateNum(samples_hist(1,:,i)), toDateNum(samples_hist(2,:,i)), ...
+            5, [0.5 0.5 0.5], 'filled');
+    scatter(toDateNum(elite_samples_hist(1,:,i)), toDateNum(elite_samples_hist(2,:,i)), ...
+            10, 'r', 'filled');  
+    scatter(toDateNum(x_hist(1,i+1)), toDateNum(x_hist(2,i+1)), ...
+            50, 'g', 'filled', 'd');
+    title(sprintf('Iteration %d', i));
+end
+
 hcb = colorbar; 
 hcb.Title.String = '\DeltaV';
 hcb.Title.FontWeight = 'bold';
