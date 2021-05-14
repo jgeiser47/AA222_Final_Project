@@ -44,45 +44,48 @@ clear all; close all; clc;
 % plot_contour_first_order_methods(x_hist_grad, x_hist_adam);
 
 %% Cross-Entropy Method
+
+% Run Cross-Entropy
 rng(1);
 N = 1;
 x0 = get_x0s(N);
 [x_hist, samples_hist, elite_samples_hist] = cross_entropy(x0);
 
-%%
+% Plot contours for successive iterations of Cross-Entropy
 plot_contour_cross_entropy(x_hist, samples_hist, elite_samples_hist);
 
 
 function [x_hist, samples_hist, elite_samples_hist] = cross_entropy(x0)
+% Purpose: run Cross-Entropy algorithm 
 
+% Hyperparameters
 N_ITERS = 3;
 N_SAMPLE = 500;
 N_ELITE = 20;
 dim = 2;
 
+% Initial covariance size
 cov_0 = 200^2 .* eye(2);
 
-% Initial conditions
-x_hist = [x0];
+% Set initial conditions
 mu = x0;
 cov = cov_0;
 
+% Prepare history arrays
+x_hist = [x0];
 samples_hist = [];
 elite_samples_hist = [];
 
 for i=1:N_ITERS
     
+    % Get samples
     samples = sqrtm(cov) * randn(dim, N_SAMPLE) + mu;
-    f_samples = zeros(1,N_SAMPLE);
     
+    % Calculate objective function value for each sample
+    f_samples = zeros(1,N_SAMPLE);
     for j = 1:N_SAMPLE
         f_samples(j) = f(samples(1,j), samples(2,j));
     end
-    
-    % On last iteration, just return the best performing sample
-%     if i==3
-%         N_ELITE = 1;
-%     end
     
     % Get indices of elite samples
     [~, indices_sorted] = sort(f_samples);
@@ -97,16 +100,12 @@ for i=1:N_ITERS
     end
     cov = cov / N_ELITE;
     
-    % Append to x_hist array 
+    % Append to history arrays for plotting 
     x_hist = [x_hist, mu];
-    
     samples_hist(:,:,i) = samples;
     elite_samples_hist(:,:,i) = elite_samples;
 end
-
-
 end
-
 
 function x_hist = adam(x0)
 % Purpose: run Adam algorithm 
@@ -220,24 +219,32 @@ function plot_contour_cross_entropy(x_hist, samples_hist, elite_samples_hist)
 % Get contour lines data by running Lambert's algorithm across search space
 s = get_contour_data();
 
-% Cross-Entropy Plot
+% Create contour plot
 figure(); 
 
+% Create a new subplot for each iteration
 N_iters = 3;
 for i = 1:N_iters
-    subplot(1,3,i); hold on; grid on; axis equal;
+    subaxis(1,3,i, 'SpacingHorizontal', 0.1, 'SpacingVertical', 0.1); 
+    hold on; grid on; axis equal;
     contour_helper(s);
-    plot(toDateNum(x_hist(1,1:i+1)), toDateNum(x_hist(2,1:i+1)), 'k');
     scatter(toDateNum(samples_hist(1,:,i)), toDateNum(samples_hist(2,:,i)), ...
             5, [0.5 0.5 0.5], 'filled');
+    plot(toDateNum(x_hist(1,1:i+1)), toDateNum(x_hist(2,1:i+1)), 'k');
     scatter(toDateNum(elite_samples_hist(1,:,i)), toDateNum(elite_samples_hist(2,:,i)), ...
             10, 'r', 'filled');  
     scatter(toDateNum(x_hist(1,i+1)), toDateNum(x_hist(2,i+1)), ...
-            50, 'g', 'filled', 'd');
+            100, 'g', 'filled', 'p');
     title(sprintf('Iteration %d', i));
 end
 
+% Add colorbar and adjust position
 hcb = colorbar; 
 hcb.Title.String = '\DeltaV';
 hcb.Title.FontWeight = 'bold';
+hcb.Position = [0.93 0.2 0.02 0.6];
+
+% Adjust some other settings of printing/saving of figure as PDF
+set(gcf, 'PaperPositionMode', 'Auto');
+set(gcf, 'PaperOrientation', 'landscape');
 end
